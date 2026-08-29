@@ -8,8 +8,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from db import get_connection, init_db, save_osint_scan
-from schemas import SherlockRequest, TheHarvesterRequest
+from db import get_connection, get_manual_notes, init_db, save_manual_note, save_osint_scan
+from schemas import ManualNoteRequest, SherlockRequest, TheHarvesterRequest
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -49,7 +49,9 @@ def on_startup():
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse(request, "dashboard.html")
+    return templates.TemplateResponse(
+        request, "dashboard.html", {"notes": get_manual_notes()}
+    )
 
 
 @app.get("/health")
@@ -332,3 +334,16 @@ async def submit_exiftool_scan_ui(request: Request, file: UploadFile = File(...)
             {"error": exc.detail, "target": file.filename},
         )
     return templates.TemplateResponse(request, "_exiftool_result.html", result)
+
+
+@app.post("/notes")
+def submit_manual_note(payload: ManualNoteRequest):
+    return save_manual_note(payload.category, payload.note)
+
+
+@app.post("/notes/ui", response_class=HTMLResponse)
+def submit_manual_note_ui(
+    request: Request, category: str = Form(...), note: str = Form(...)
+):
+    saved = save_manual_note(category, note)
+    return templates.TemplateResponse(request, "_manual_note_item.html", {"note": saved})

@@ -63,9 +63,14 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
    - Layout dashboardu (ustalone 2026-08-29): **panele pionowo na jednej stronie**, nie
      zakładki/osobne routy — każdy panel ma własny `hx-target`, więc długi skan jednego narzędzia
      nie blokuje reszty.
-4. Dalej: manualny log dla rzeczy nieautomatyzowalnych (ukończona maszyna HTB, przećwiczona
-   technika AD, przeczytany rozdział ISO, postawiony SIEM) — tabela `manual_notes` (nazwa robocza),
-   osobny endpoint. Czysta historia/notatnik, bez punktacji.
+4. ✅ **Manualny log** (zrobione 2026-08-29). Tabela `manual_notes(category, note, created_at)`.
+   `POST /notes` (JSON) i `POST /notes/ui` (HTMX) dzielą `db.save_manual_note()`, zwracają od razu
+   zapisany wiersz — bez re-query. Panel formularza dokłada nowy wpis na górę listy przez
+   `hx-swap="afterbegin"` (nie podmienia całej listy — jeden insert, jeden nowy `<li>`), reset pola
+   przez `hx-on::after-request="this.reset()"`. Lista renderuje się też przy `GET /`
+   (`db.get_manual_notes()`) — ten sam partial `_manual_note_item.html` używany przez oba miejsca
+   (`{% include %}` w pętli i bezpośrednio jako odpowiedź HTMX) dzięki wspólnej nazwie zmiennej
+   kontekstu (`note`). Pusta lista → `{% for ... %} ... {% else %}` w Jinja, nie osobny warunek.
 
 ## Otwarte pytania / do ustalenia po drodze
 
