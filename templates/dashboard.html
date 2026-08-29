@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Hacker RPG</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+</head>
+<body>
+  <div class="hud">
+    <div class="hud-header">
+      <div class="hud-title">Hacker RPG</div>
+      <div class="hud-status">DOSSIER · ONLINE</div>
+    </div>
+
+    <div id="xp-bar" class="xp-bar">
+      <span>TOTAL XP: <strong>{{ total_xp }}</strong></span>
+      <span>LVL <strong>{{ level }}</strong></span>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">OSINT // sherlock — username recon</div>
+      <form
+        class="scan-form"
+        hx-post="/quest/sherlock/ui"
+        hx-target="#sherlock-result"
+        hx-swap="innerHTML"
+        hx-indicator="#sherlock-indicator"
+      >
+        <input
+          type="text"
+          name="username"
+          placeholder="target username, np. torvalds"
+          required
+          autocomplete="off"
+        >
+        <button class="btn" type="submit">Scan</button>
+      </form>
+      <div id="sherlock-indicator" class="htmx-indicator">
+        <span class="blink">&gt;&gt;</span> przeszukuję serwisy (może potrwać kilka minut)...
+      </div>
+    </div>
+
+    <div id="sherlock-result" class="panel">
+      <div class="panel-label">Wynik</div>
+      <p style="color: var(--text-dim);">Brak jeszcze żadnego skanu.</p>
+    </div>
+  </div>
+</body>
+</html>

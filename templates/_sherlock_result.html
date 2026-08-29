@@ -1,0 +1,30 @@
+{% if grand_total_xp is defined %}
+<div id="xp-bar" class="xp-bar" hx-swap-oob="true">
+  <span>TOTAL XP: <strong>{{ grand_total_xp }}</strong></span>
+  <span>LVL <strong>{{ level }}</strong></span>
+</div>
+{% endif %}
+<div class="panel-label">Wynik</div>
+{% if error %}
+<div class="error-box">
+  [!] Skan dla <strong>{{ target }}</strong> nie powiódł się: {{ error }}
+</div>
+{% else %}
+<div class="result-header">
+  <span>target: <span class="result-target">{{ target }}</span></span>
+  <span class="xp-badge">+{{ xp_earned }} XP (razem: {{ total_xp }})</span>
+</div>
+<p style="color: var(--text-dim); font-size: 0.85rem;">
+  Znaleziono {{ found_count }} kont{{ "o" if found_count == 1 else "" }}.
+</p>
+{% if results %}
+<ul class="hit-list">
+  {% for hit in results %}
+  <li>
+    <span class="hit-service">{{ hit.service }}</span>
+    <a class="hit-url" href="{{ hit.url }}" target="_blank" rel="noopener noreferrer">{{ hit.url }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endif %}
