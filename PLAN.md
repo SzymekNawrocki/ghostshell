@@ -1,4 +1,4 @@
-# Hacker RPG — plan (od 2026-08-29)
+# GhostShell — plan (od 2026-08-29, przemianowane z "Hacker RPG" 2026-08-29)
 
 ## Cel appki (zmieniony 2026-08-29, gamifikacja usunięta 2026-08-29)
 
@@ -66,6 +66,6 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
 ## Zasada pracy (zmieniona 2026-08-29)
 
 Pierwotnie: kod appki pisze Szymon sam, z głowy. **Nadpisane 2026-08-29** — Szymon poprosił, żeby
-przy Hacker RPG kod pisał Claude bezpośrednio (bez podziału tłumaczenie+jego kod). Dotyczy tylko
+przy GhostShell kod pisał Claude bezpośrednio (bez podziału tłumaczenie+jego kod). Dotyczy tylko
 tego projektu; w innych (PayPaper, przygotowanie do egzaminu) stara zasada nadal obowiązuje. Patrz
 `[[teaching-code-user-writes-not-me]]`, `NOTES.md`.
