@@ -106,6 +106,52 @@ Wszystkie 4 kroki budowy + powrót do Dockera — zrobione i przetestowane na ż
 więcej źródeł OSINT typu Holehe/Maigret, rate-limiting skanów) omówione osobno, nie tutaj —
 zaczynać dopiero po wyraźnej decyzji, nie domyślnie.
 
+## Faza 2 — pod HTB (zaplanowane 2026-08-30, jeszcze nie zaczęte)
+
+Kontekst: Szymon zaczyna uczyć się na HackTheBox i pytał, jak appka może to zautomatyzować.
+Przegląd całego arsenału (Nmap, Nikto, gobuster, searchsploit, Hydra, hashcat/john, Wireshark,
+Burp Suite, Metasploit, LinPEAS/WinPEAS) pod kątem: co faktycznie pasuje do wzorca appki
+(subprocess z maszyny atakującej → parsowalny wynik w rozsądnym czasie → zapis), a co jest z natury
+interaktywne/stanowe i appka by to tylko udawała.
+
+### Zostają jako osobne narzędzia (nie wchodzą do GhostShell)
+
+- **Wireshark, Burp Suite** — już zainstalowane osobno u Szymona. Interaktywne z natury (Wireshark:
+  ciągłe przechwytywanie, wynik to binarny `.pcap`, nie tekst; Burp: proxy do ręcznej pracy z
+  requestami — Repeater/Intruder to praca człowieka, nie jednorazowe wywołanie).
+- **Metasploit (`msfconsole`)** — wieloetapowa sesja (wybór modułu → opcje → sesja → działania w
+  niej), nie "jedno wywołanie → jeden wynik". Do zainstalowania osobno, nieodzowne na wielu
+  maszynach HTB, ale poza appką.
+- **LinPEAS / WinPEAS** — działają NA zaatakowanej maszynie (po zdobyciu shella), appka działa z
+  zewnątrz do środka — przeciwny kierunek, fizycznie nie do zorkiestrowania zdalnie. Ściągnąć same
+  skrypty (`carlospolop/PEASS-ng`), trzymać gotowe do wgrania na target.
+- **searchsploit** — technicznie pasuje (CLI, natychmiastowy wynik), ale odrzucone: to pojedyncza,
+  natychmiastowa komenda lokalna — owinięcie jej w formularz webowy nie oszczędza czasu względem
+  wpisania tego samego w terminalu obok przeglądarki. Jedyny zysk (wspólna historia) nie uzasadnia
+  kolejnego panelu.
+- **Hydra** — odrzucone: brute-force wymaga starannego doboru wordlisty użytkowników/haseł *per
+  target*, generyczny formularz i tak zredukowałby się do gorszego CLI. Do tego appka nie ma dziś
+  żadnej autoryzacji/ograniczenia celu — jednoklikowy brute-force w web UI to realna furtka do
+  nadużycia, gdyby appka kiedyś wyszła poza `localhost`. Koszt zabezpieczenia (allowlist celu) nie
+  broni się względem korzyści.
+- **hashcat / john** — odrzucone: czas działania praktycznie nieograniczony (może kręcić się
+  godzinami), kompletnie nie pasuje do modelu appki "krótki request → wynik" (Sherlock z 2-3 min
+  już jest na granicy sensu). Zostaje w terminalu, najlepiej w `tmux`.
+
+### Wchodzą do GhostShell — kolejność (żadna jeszcze nie zaczęta)
+
+1. **Nmap** + **grupowanie po `target`/`engagement`** — robione razem, nie osobno. Nmap: ten sam
+   wzorzec co Sherlock (`asyncio.create_subprocess_exec`, `-oX -` → XML na stdout → parsowanie
+   portów/usług → `db.save_osint_scan`). Grupowanie: dodać kolumnę `target`/`engagement` (np. "HTB:
+   Lame") do `osint_scans`, filtrować/grupować dashboard po niej — bez tego czwarty (i kolejne)
+   panel tylko pogłębia bałagan w płaskiej liście. Decyzja: robić od razu razem, bo koszt osobnej
+   migracji później > koszt zrobienia raz teraz.
+2. **Nikto** i **gobuster** — do rozważenia PO tym, jak Nmap+grupowanie się sprawdzą w realnym
+   użyciu, nie od razu. Oba pasują do wzorca, ale mają realny koszt: gobuster z dużą wordlistą może
+   kręcić się długo (ten sam problem co Sherlock: "30-60s" okazało się być "2-3 min" w praktyce),
+   Nikto bywa gadatliwy (dużo fałszywych alarmów na nowoczesnych serwerach). Nie odrzucone, tylko
+   odłożone do potwierdzenia na żywym przypadku.
+
 ## Zasada pracy (zmieniona 2026-08-29)
 
 Pierwotnie: kod appki pisze Szymon sam, z głowy. **Nadpisane 2026-08-29** — Szymon poprosił, żeby
