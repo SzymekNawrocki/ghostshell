@@ -72,15 +72,39 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
    (`{% include %}` w pętli i bezpośrednio jako odpowiedź HTMX) dzięki wspólnej nazwie zmiennej
    kontekstu (`note`). Pusta lista → `{% for ... %} ... {% else %}` w Jinja, nie osobny warunek.
 
-## Otwarte pytania / do ustalenia po drodze
+5. ✅ **Powrót do Dockera** (zrobione 2026-08-29) — plan domknięty w całości. `Dockerfile` bazuje
+   teraz na `python:3.12-slim` (nie `alpine`) — trzy realne narzędzia mają natywne zależności
+   (lxml, psycopg) i pakiety systemowe (`exiftool`, `git`), które na Debianie są prostym `apt-get`
+   zamiast kompilowania na musl. Złapane na żywym buildzie, nie z dokumentacji:
+   - `theHarvester` **nie ma realnego wydania na PyPI** (nazwa jest zasquattowana, pusty pakiet
+     0.0.1) — instalacja musi iść przez `pip install ... git+https://github.com/laramies/theHarvester.git`.
+   - HEAD tego repo w międzyczasie podniósł wymóg do Pythona 3.14 — build padał, dopóki instalacja
+     nie została przypięta do taga `4.11.1` (tej samej wersji co lokalny dev-install).
+   - **Zainstalowany prosto do środowiska appki, theHarvester degradował pinned zależności**:
+     `fastapi 0.141.1→0.136.3`, `uvicorn 0.52.4→0.48.0` — bo jego własne pinny wygrały rozwiązywanie
+     zależności pip. Naprawione przez `pipx install` — izolowany venv dla theHarvestera, jego
+     `theHarvester` command i tak ląduje na `PATH` (`/root/.local/bin`), ale bez dotykania zależności
+     appki. `sherlock-project` nie miał tego problemu — zainstalowany zwykłym `pip install` prosto
+     do środowiska appki.
+   - `exiftool` na Debianie: pakiet `libimage-exiftool-perl` (nie `exiftool`).
+   - Przetestowane end-to-end przez `docker compose up` (bez żadnego lokalnego `venv`/`uvicorn`):
+     wszystkie cztery funkcje (sherlock, theHarvester, exiftool, manualny log) + dashboard +
+     statyki — działają tak samo jak lokalnie.
 
-- **Decyzja 2026-08-29: async od razu, nie "na później".** Sherlock/theHarvester sprawdzają setki
-  serwisów i mogą trwać 30-60+ s — wołanie ich przez zwykły `subprocess.run()` w endpointcie
-  `async def` blokowałoby cały event loop FastAPI (żaden inny request nie byłby obsłużony w tym
-  czasie). Zamiast tego: `asyncio.create_subprocess_exec` + `await proc.communicate()` —
-  prawdziwe, nieblokujące wywołanie procesu zewnętrznego.
-- Appka na czas budowy odpalana lokalnie (`uvicorn`, poza Dockerem) — Sherlock/theHarvester/exiftool
-  muszą być zainstalowane w kontenerze dopiero, gdy appka wraca do `docker-compose`.
+## Decyzje architektoniczne (zamknięte)
+
+- **Async od razu, nie "na później".** Sherlock/theHarvester sprawdzają setki serwisów i mogą
+  trwać 30-60+ s — wołanie ich przez zwykły `subprocess.run()` w endpointcie `async def`
+  blokowałoby cały event loop FastAPI (żaden inny request nie byłby obsłużony w tym czasie).
+  Zamiast tego: `asyncio.create_subprocess_exec` + `await proc.communicate()` — prawdziwe,
+  nieblokujące wywołanie procesu zewnętrznego.
+
+## Plan zrealizowany (2026-08-29)
+
+Wszystkie 4 kroki budowy + powrót do Dockera — zrobione i przetestowane na żywo (nie tylko
+"powinno działać"). Pomysły wykraczające poza ten plan (historia skanów w UI, eksport CSV/JSON,
+więcej źródeł OSINT typu Holehe/Maigret, rate-limiting skanów) omówione osobno, nie tutaj —
+zaczynać dopiero po wyraźnej decyzji, nie domyślnie.
 
 ## Zasada pracy (zmieniona 2026-08-29)
 
