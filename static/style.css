@@ -64,22 +64,6 @@ body {
   border-radius: 3px;
 }
 
-.xp-bar {
-  display: flex;
-  justify-content: space-between;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.6rem 1rem;
-  margin-bottom: 1.5rem;
-  font-size: 0.85rem;
-  color: var(--text-dim);
-}
-
-.xp-bar strong {
-  color: var(--amber);
-}
-
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -179,11 +163,6 @@ body {
 
 .result-target {
   color: var(--cyan);
-}
-
-.xp-badge {
-  color: var(--amber);
-  font-weight: 600;
 }
 
 .hit-list {

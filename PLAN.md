@@ -1,11 +1,18 @@
 # Hacker RPG — plan (od 2026-08-29)
 
-## Cel appki (zmieniony 2026-08-29)
+## Cel appki (zmieniony 2026-08-29, gamifikacja usunięta 2026-08-29)
 
 Nie tracker XP, który tylko *przyjmuje* gotowe wyniki skanów — appka ma być **narzędziem, które
 faktycznie robi robotę etycznego hakera**: sama uruchamia realne narzędzia bezpieczeństwa/OSINT,
-parsuje wynik, zapisuje historię i nadaje XP za to, co naprawdę zrobiła. Gamifikacja (XP, questy)
-zostaje jako warstwa na wierzchu, nie jako sens appki.
+parsuje wynik i zapisuje historię.
+
+**Update tego samego dnia: żadnej gamifikacji.** Pierwotny plan zakładał XP/poziomy jako warstwę
+na wierzchu — porzucone. To ma być narzędzie, nie gra: bez punktów, bez poziomów, bez "questów".
+Usunięte z kodu: `calculate_xp`, `calculate_osint_xp`, `calculate_level`, `db.get_total_xp()`,
+kolumna `xp_earned` w `osint_scans`, cały endpoint `/quest/scan` (i tabela `scans` — dotyczyła
+tylko naliczania XP za wyniki skanów obrazów, nie uruchamiała żadnego realnego narzędzia, więc
+odpadła w całości, nie tylko warstwa XP). Zostaje: `osint_scans(tool, target, found_count,
+results, created_at)` — czysta historia, bez punktacji.
 
 Porzucony pomysł: appka jako celowo dziurawy web-target do atakowania. Powód: nowe luki
 (Active Directory, SIEM, HackTheBox, MiliTech) i tak nie są web AppSec, więc dziurawa appka
@@ -25,14 +32,14 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
 ## Kolejność budowy (żeby appka zawsze działała, nigdy "pół zepsuta")
 
 1. ✅ **Sherlock end-to-end, backend only** (zrobione 2026-08-29). `asyncio.create_subprocess_exec`
-   → parsowanie linijek `[+] Serwis: URL` → tabela `osint_scans` (`db.py:init_db()`) → XP
-   (`calculate_osint_xp`) → `POST /quest/sherlock`. Przetestowane na żywo (realny `sherlock.exe`,
-   realna baza w Dockerze): pełny skan bez `--site` to ~400 serwisów i **2-3 minuty**, nie 30-60s
-   jak zakładano wstępnie — stąd `SHERLOCK_TIMEOUT_SECONDS=240` domyślnie.
+   → parsowanie linijek `[+] Serwis: URL` → tabela `osint_scans` (`db.py:init_db()`) →
+   `POST /scan/sherlock`. Przetestowane na żywo (realny `sherlock.exe`, realna baza w Dockerze):
+   pełny skan bez `--site` to ~400 serwisów i **2-3 minuty**, nie 30-60s jak zakładano wstępnie —
+   stąd `SHERLOCK_TIMEOUT_SECONDS=240` domyślnie.
 2. ✅ **Jinja2 + HTMX** (zrobione 2026-08-29). `GET /` renderuje `templates/dashboard.html`
    (dawny JSON-status z `/` przeniesiony koncepcyjnie do `/health`); formularz leci przez HTMX
-   (`hx-post`, form-encoded, nie JSON) na nowy `POST /quest/sherlock/ui`, który współdzieli logikę
-   skanu z `POST /quest/sherlock` (`perform_sherlock_scan()`) i zwraca fragment
+   (`hx-post`, form-encoded, nie JSON) na nowy `POST /scan/sherlock/ui`, który współdzieli logikę
+   skanu z `POST /scan/sherlock` (`perform_sherlock_scan()`) i zwraca fragment
    `templates/_sherlock_result.html` — podmiana bez przeładowania. Styl: `static/style.css`,
    HUD/dossier, IBM Plex Mono (Google Fonts), amber/cyan na ciemnym tle. HTMX z jsdelivr CDN.
    Błędy (timeout, zły `SHERLOCK_BIN`) renderują się jako `.error-box` we fragmencie zamiast
@@ -41,12 +48,10 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
    panel na dashboardzie (form + wynik), własny `perform_<tool>_scan()`, wpis do `osint_scans`
    z odpowiednią wartością `tool`. Layout dashboardu (ustalone 2026-08-29): **panele pionowo na
    jednej stronie**, nie zakładki/osobne routy — każdy panel ma własny `hx-target`, więc długi skan
-   jednego narzędzia nie blokuje reszty. Wspólny pasek `TOTAL XP` / `LVL` na górze
-   (`db.py:get_total_xp()`) aktualizuje się przez HTMX out-of-band swap (`hx-swap-oob="true"` na
-   `#xp-bar` w każdym fragmencie wyniku) — każdy kolejny panel musi doliczać ten sam OOB-blok.
-4. Dalej: manualny quest-log dla rzeczy nieautomatyzowalnych (ukończona maszyna HTB, przećwiczona
-   technika AD, przeczytany rozdział ISO, postawiony SIEM) — tabela `manual_quests`, osobny
-   endpoint, ten sam mechanizm XP.
+   jednego narzędzia nie blokuje reszty.
+4. Dalej: manualny log dla rzeczy nieautomatyzowalnych (ukończona maszyna HTB, przećwiczona
+   technika AD, przeczytany rozdział ISO, postawiony SIEM) — tabela `manual_notes` (nazwa robocza),
+   osobny endpoint. Czysta historia/notatnik, bez punktacji.
 
 ## Otwarte pytania / do ustalenia po drodze
 
@@ -58,8 +63,9 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
 - Appka na czas budowy odpalana lokalnie (`uvicorn`, poza Dockerem) — Sherlock/theHarvester/exiftool
   muszą być zainstalowane w kontenerze dopiero, gdy appka wraca do `docker-compose`.
 
-## Zasada pracy (bez zmian)
+## Zasada pracy (zmieniona 2026-08-29)
 
-Kod appki (i nowe wzorce w niej) pisze Szymon sam, z głowy — nowe koncepty (jak `subprocess`)
-tłumaczone najpierw na osobnym, małym przykładzie. Patrz `[[teaching-code-user-writes-not-me]]`,
-`NOTES.md`.
+Pierwotnie: kod appki pisze Szymon sam, z głowy. **Nadpisane 2026-08-29** — Szymon poprosił, żeby
+przy Hacker RPG kod pisał Claude bezpośrednio (bez podziału tłumaczenie+jego kod). Dotyczy tylko
+tego projektu; w innych (PayPaper, przygotowanie do egzaminu) stara zasada nadal obowiązuje. Patrz
+`[[teaching-code-user-writes-not-me]]`, `NOTES.md`.

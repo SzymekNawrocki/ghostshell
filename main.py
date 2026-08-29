@@ -7,8 +7,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from db import get_connection, get_total_xp, init_db
-from schemas import ScanResult, SherlockRequest
+from db import get_connection, init_db
+from schemas import SherlockRequest
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -31,18 +31,9 @@ def on_startup():
     init_db()
 
 
-def calculate_level(total_xp: int) -> int:
-    return total_xp // 500 + 1
-
-
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    total_xp = get_total_xp()
-    return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {"total_xp": total_xp, "level": calculate_level(total_xp)},
-    )
+    return templates.TemplateResponse(request, "dashboard.html")
 
 
 @app.get("/health")
@@ -57,17 +48,6 @@ def db_check():
             cur.execute("SELECT version();")
             row = cur.fetchone()
     return {"postgres_version": row[0]}
-
-
-def calculate_xp(high_count: int, critical_count: int) -> int:
-    penalty = high_count * 5 + critical_count * 10
-    return max(100 - penalty, 10)
-
-
-def calculate_osint_xp(found_count: int) -> int:
-    if found_count == 0:
-        return 10  # still XP for running the recon, even with no hits
-    return min(found_count * 15, 200)
 
 
 def parse_sherlock_output(stdout: str) -> list[dict]:
@@ -122,67 +102,35 @@ async def run_sherlock(username: str) -> list[dict]:
     return parse_sherlock_output(stdout.decode(errors="replace"))
 
 
-@app.post("/quest/scan")
-def submit_scan(result: ScanResult):
-    xp_earned = calculate_xp(result.high_count, result.critical_count)
-
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO scans (image_name, high_count, critical_count, xp_earned)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (result.image_name, result.high_count, result.critical_count, xp_earned),
-            )
-            cur.execute("SELECT COALESCE(SUM(xp_earned), 0) FROM scans;")
-            total_xp = cur.fetchone()[0]
-        conn.commit()
-
-    return {"xp_earned": xp_earned, "total_xp": total_xp}
-
-
 async def perform_sherlock_scan(username: str) -> dict:
     """Run sherlock, persist the result, return everything a caller (JSON API
     or the HTMX dashboard) needs to report back."""
     hits = await run_sherlock(username)
-    xp_earned = calculate_osint_xp(len(hits))
 
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO osint_scans (tool, target, found_count, results, xp_earned)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO osint_scans (tool, target, found_count, results)
+                VALUES (%s, %s, %s, %s)
                 """,
-                ("sherlock", username, len(hits), json.dumps(hits), xp_earned),
+                ("sherlock", username, len(hits), json.dumps(hits)),
             )
-            cur.execute(
-                "SELECT COALESCE(SUM(xp_earned), 0) FROM osint_scans WHERE tool = %s;",
-                ("sherlock",),
-            )
-            total_xp = cur.fetchone()[0]
         conn.commit()
-
-    grand_total_xp = get_total_xp()
 
     return {
         "target": username,
         "found_count": len(hits),
         "results": hits,
-        "xp_earned": xp_earned,
-        "total_xp": total_xp,
-        "grand_total_xp": grand_total_xp,
-        "level": calculate_level(grand_total_xp),
     }
 
 
-@app.post("/quest/sherlock")
+@app.post("/scan/sherlock")
 async def submit_sherlock_scan(payload: SherlockRequest):
     return await perform_sherlock_scan(payload.username)
 
 
-@app.post("/quest/sherlock/ui", response_class=HTMLResponse)
+@app.post("/scan/sherlock/ui", response_class=HTMLResponse)
 async def submit_sherlock_scan_ui(request: Request, username: str = Form(...)):
     try:
         result = await perform_sherlock_scan(username)

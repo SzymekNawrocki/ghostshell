@@ -10,19 +10,14 @@
   <div class="hud">
     <div class="hud-header">
       <div class="hud-title">Hacker RPG</div>
-      <div class="hud-status">DOSSIER · ONLINE</div>
-    </div>
-
-    <div id="xp-bar" class="xp-bar">
-      <span>TOTAL XP: <strong>{{ total_xp }}</strong></span>
-      <span>LVL <strong>{{ level }}</strong></span>
+      <div class="hud-status">TOOLKIT · ONLINE</div>
     </div>
 
     <div class="panel">
       <div class="panel-label">OSINT // sherlock — username recon</div>
       <form
         class="scan-form"
-        hx-post="/quest/sherlock/ui"
+        hx-post="/scan/sherlock/ui"
         hx-target="#sherlock-result"
         hx-swap="innerHTML"
         hx-indicator="#sherlock-indicator"
