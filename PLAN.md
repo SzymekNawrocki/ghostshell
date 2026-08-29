@@ -44,11 +44,25 @@ webowa by ich nie ćwiczyła. Szczegóły dyskusji: `NOTES.md` (wpis 2026-08-29)
    HUD/dossier, IBM Plex Mono (Google Fonts), amber/cyan na ciemnym tle. HTMX z jsdelivr CDN.
    Błędy (timeout, zły `SHERLOCK_BIN`) renderują się jako `.error-box` we fragmencie zamiast
    wywalać surowy response HTMX-owi.
-3. **Kolejne narzędzia** (theHarvester, exiftool) — kopiując sprawdzony wzorzec z kroku 1: własny
-   panel na dashboardzie (form + wynik), własny `perform_<tool>_scan()`, wpis do `osint_scans`
-   z odpowiednią wartością `tool`. Layout dashboardu (ustalone 2026-08-29): **panele pionowo na
-   jednej stronie**, nie zakładki/osobne routy — każdy panel ma własny `hx-target`, więc długi skan
-   jednego narzędzia nie blokuje reszty.
+3. ✅ **theHarvester + exiftool** (zrobione 2026-08-29), wzorzec z kroku 1 powielony 1:1:
+   - **theHarvester** (`POST /scan/theharvester[/ui]`): `-b hackertarget` jako sztywne, niekonfigurowalne
+     przez użytkownika źródło (bez klucza API, odpowiada w kilka-kilkanaście sekund; `crtsh`
+     sprawdzony na żywo i nie zwracał wyników — najwyraźniej ich API się zmieniło/padło, więc
+     zostało odrzucone). Wynik czytany z pliku (`-f <prefix>` → `<prefix>.json`, `hosts:
+     ["subdomena:ip", ...]`), nie ze stdout — stabilniejsze niż scraping tekstu. Plik tymczasowy
+     w `tempfile.TemporaryDirectory()`, sprzątany automatycznie.
+   - **exiftool** (`POST /scan/exiftool[/ui]`): jedyne narzędzie z uploadem pliku zamiast tekstu
+     (`UploadFile`, `hx-encoding="multipart/form-data"` po stronie HTMX). `-j -G` daje czysty JSON
+     z metadanymi. Upload trafia do `tempfile.NamedTemporaryFile`, usuwany w `finally` zaraz po
+     analizie — nic z przesłanego pliku nie zostaje na dysku. **Pułapka złapana na żywo:**
+     `File:FileName`/`File:Directory` w wyniku exiftoola opisują tymczasową ścieżkę serwera, nie
+     oryginalną nazwę pliku — trzeba je jawnie usuwać z metadanych przed pokazaniem/zapisem, inaczej
+     UI pokazuje losową nazwę `tmpXXXXXX.jpg` zamiast np. `food.jpg`. Limit uploadu: 25 MB.
+   - Wspólny insert do `osint_scans` wydzielony do `db.save_osint_scan(tool, target, found_count,
+     results)` — bez tego trzeci powtórzony blok SQL przestawał mieć sens.
+   - Layout dashboardu (ustalone 2026-08-29): **panele pionowo na jednej stronie**, nie
+     zakładki/osobne routy — każdy panel ma własny `hx-target`, więc długi skan jednego narzędzia
+     nie blokuje reszty.
 4. Dalej: manualny log dla rzeczy nieautomatyzowalnych (ukończona maszyna HTB, przećwiczona
    technika AD, przeczytany rozdział ISO, postawiony SIEM) — tabela `manual_notes` (nazwa robocza),
    osobny endpoint. Czysta historia/notatnik, bez punktacji.

@@ -40,6 +40,57 @@
       <div class="panel-label">Wynik</div>
       <p style="color: var(--text-dim);">Brak jeszcze żadnego skanu.</p>
     </div>
+
+    <div class="panel">
+      <div class="panel-label">OSINT // theHarvester — domain recon</div>
+      <form
+        class="scan-form"
+        hx-post="/scan/theharvester/ui"
+        hx-target="#theharvester-result"
+        hx-swap="innerHTML"
+        hx-indicator="#theharvester-indicator"
+      >
+        <input
+          type="text"
+          name="domain"
+          placeholder="target domain, np. python.org"
+          required
+          autocomplete="off"
+        >
+        <button class="btn" type="submit">Scan</button>
+      </form>
+      <div id="theharvester-indicator" class="htmx-indicator">
+        <span class="blink">&gt;&gt;</span> przeszukuję subdomeny...
+      </div>
+    </div>
+
+    <div id="theharvester-result" class="panel">
+      <div class="panel-label">Wynik</div>
+      <p style="color: var(--text-dim);">Brak jeszcze żadnego skanu.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">FORENSICS // exiftool — metadane pliku</div>
+      <form
+        class="scan-form"
+        hx-post="/scan/exiftool/ui"
+        hx-target="#exiftool-result"
+        hx-swap="innerHTML"
+        hx-indicator="#exiftool-indicator"
+        hx-encoding="multipart/form-data"
+      >
+        <input type="file" name="file" required>
+        <button class="btn" type="submit">Scan</button>
+      </form>
+      <div id="exiftool-indicator" class="htmx-indicator">
+        <span class="blink">&gt;&gt;</span> analizuję plik...
+      </div>
+    </div>
+
+    <div id="exiftool-result" class="panel">
+      <div class="panel-label">Wynik</div>
+      <p style="color: var(--text-dim);">Brak jeszcze żadnej analizy.</p>
+    </div>
   </div>
 </body>
 </html>

@@ -1,3 +1,4 @@
+import json
 import os
 
 import psycopg
@@ -24,5 +25,20 @@ def init_db():
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 );
                 """
+            )
+        conn.commit()
+
+
+def save_osint_scan(tool: str, target: str, found_count: int, results) -> None:
+    """Persist one tool run to the shared history table. `results` is anything
+    JSON-serializable (list of hits, dict of metadata, ...)."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO osint_scans (tool, target, found_count, results)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (tool, target, found_count, json.dumps(results)),
             )
         conn.commit()

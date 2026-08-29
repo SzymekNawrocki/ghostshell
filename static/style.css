@@ -105,6 +105,31 @@ body {
   color: var(--text-dim);
 }
 
+.scan-form input[type="file"] {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 3px;
+}
+
+.scan-form input[type="file"]::file-selector-button {
+  background: transparent;
+  border: 1px solid var(--amber-dim);
+  color: var(--amber);
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.7rem;
+  border-radius: 3px;
+  margin-right: 0.75rem;
+  cursor: pointer;
+}
+
 .btn {
   background: transparent;
   border: 1px solid var(--amber-dim);
