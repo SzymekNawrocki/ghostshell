@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -281,4 +282,89 @@ NMAP_SPEC = ScanSpec(
     timeout=NMAP_TIMEOUT_SECONDS,
     build_args=lambda target, _workdir: ["-Pn", "-sV", "-T4", "-oX", "-", target],
     parse=parse_nmap_output,
+)
+
+
+# ---------------------------------------------------------------------------
+# gobuster — hidden web directories/files (dir mode)
+# ---------------------------------------------------------------------------
+
+GOBUSTER_BIN = os.environ.get("GOBUSTER_BIN", "gobuster")
+
+# dirb's Debian package ships this wordlist even though we never call the
+# `dirb` binary itself — it's the standard small/fast "common.txt" (~4600
+# words). A thorough list (SecLists medium/large, 200k+ words) would turn a
+# single scan into tens of minutes to hours against one target — wrong shape
+# for a "click scan, get an answer" tool. Override via env var for a deeper
+# scan on a specific room, without touching code.
+GOBUSTER_WORDLIST = os.environ.get("GOBUSTER_WORDLIST", "/usr/share/dirb/wordlists/common.txt")
+
+# Fixed, not user-configurable per scan (yet) — these are the extensions that
+# most often hide something worth finding (leftover backups, configs) on a
+# CTF-style box. Every extra extension multiplies how many requests gobuster
+# has to make, so this list stays short and deliberate rather than "everything".
+GOBUSTER_EXTENSIONS = os.environ.get("GOBUSTER_EXTENSIONS", "php,txt,bak,zip,html,config")
+
+# Measured live against a real target (scanme.nmap.org, common.txt + the 6
+# extensions below): ~85s at the gobuster default of 10 threads, ~117s with
+# extensions on at 50 threads. 10 threads with extensions on extrapolates to
+# ~10 minutes — the same "30-60s turned into minutes" trap Sherlock already
+# taught us, just worse here because -x multiplies the request count by
+# (extensions + 1). 50 threads keeps a realistic scan inside two minutes;
+# timeout leaves real margin for a slower target.
+GOBUSTER_THREADS = os.environ.get("GOBUSTER_THREADS", "50")
+GOBUSTER_TIMEOUT_SECONDS = int(os.environ.get("GOBUSTER_TIMEOUT_SECONDS", "240"))
+
+# Matches gobuster's dir-mode output, one hit per line:
+#   /admin                (Status: 301) [Size: 313] [--> http://target/admin/]
+#   /backup.zip           (Status: 200) [Size: 1024]
+# `-q --no-color --no-progress` still doesn't stop gobuster writing a
+# "clear line" ANSI escape (\x1b[2K) right before every result line —
+# caught on a real run, not documented — so that gets stripped first.
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_GOBUSTER_HIT_RE = re.compile(
+    r"^(?P<path>\S+)\s+\(Status:\s*(?P<status>\d+)\)"
+    r"(?:\s*\[Size:\s*(?P<size>\d+)\])?"
+    r"(?:\s*\[-->\s*(?P<redirect>\S+)\])?"
+)
+
+
+def parse_gobuster_output(stdout: str) -> list[dict]:
+    """Parse gobuster's dir-mode stdout into structured hits."""
+    hits = []
+    for line in stdout.splitlines():
+        line = _ANSI_ESCAPE_RE.sub("", line).strip()
+        match = _GOBUSTER_HIT_RE.match(line)
+        if not match:
+            continue
+        hits.append(
+            {
+                "path": match.group("path"),
+                "status": int(match.group("status")),
+                "size": int(match.group("size")) if match.group("size") else None,
+                "redirect": match.group("redirect"),
+            }
+        )
+    return hits
+
+
+GOBUSTER_SPEC = ScanSpec(
+    tool="gobuster",
+    binary=GOBUSTER_BIN,
+    timeout=GOBUSTER_TIMEOUT_SECONDS,
+    build_args=lambda target, _workdir: [
+        "dir",
+        "-u",
+        target,
+        "-w",
+        GOBUSTER_WORDLIST,
+        "-x",
+        GOBUSTER_EXTENSIONS,
+        "-q",
+        "--no-color",
+        "--no-progress",
+        "-t",
+        GOBUSTER_THREADS,
+    ],
+    parse=parse_gobuster_output,
 )

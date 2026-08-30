@@ -17,6 +17,7 @@ from scan_tools import (
     ScanSpec,
     THEHARVESTER_SPEC,
     parse_exiftool_output,
+    parse_gobuster_output,
     parse_nmap_output,
     parse_sherlock_output,
     parse_theharvester_output,
@@ -281,3 +282,33 @@ def test_parse_nmap_output_invalid_xml_raises_502():
     with pytest.raises(HTTPException) as exc_info:
         parse_nmap_output("not xml at all")
     assert exc_info.value.status_code == 502
+
+
+# --- parse_gobuster_output ---------------------------------------------------
+
+
+def test_parse_gobuster_output_extracts_path_status_and_size():
+    stdout = (
+        "/admin                (Status: 301) [Size: 313] [--> http://target/admin/]\n"
+        "/backup.zip           (Status: 200) [Size: 1024]\n"
+    )
+    assert parse_gobuster_output(stdout) == [
+        {"path": "/admin", "status": 301, "size": 313, "redirect": "http://target/admin/"},
+        {"path": "/backup.zip", "status": 200, "size": 1024, "redirect": None},
+    ]
+
+
+def test_parse_gobuster_output_ignores_non_hit_lines():
+    stdout = "===============================================================\nGobuster v3.6\n"
+    assert parse_gobuster_output(stdout) == []
+
+
+def test_parse_gobuster_output_strips_ansi_clear_line_before_hits():
+    # Caught on a real run: gobuster writes \x1b[2K (clear line) right before
+    # every hit even with --no-color --no-progress — undocumented behavior,
+    # not a hypothetical. Without stripping it, the escape bytes fuse onto
+    # the front of "path" since there's no whitespace between them.
+    stdout = "\x1b[2K/admin                (Status: 301) [Size: 313]\n"
+    assert parse_gobuster_output(stdout) == [
+        {"path": "/admin", "status": 301, "size": 313, "redirect": None}
+    ]

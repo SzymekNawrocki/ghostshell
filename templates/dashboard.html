@@ -160,6 +160,43 @@
       <p style="color: var(--text-dim);">Brak jeszcze żadnego skanu.</p>
     </div>
 
+    <div class="panel">
+      <div class="panel-label">RECON // gobuster — ukryte katalogi i pliki</div>
+      <form
+        class="scan-form"
+        hx-post="/scan/gobuster/ui"
+        hx-target="#gobuster-result"
+        hx-swap="innerHTML settle:300ms"
+        hx-indicator="#gobuster-indicator"
+      >
+        <input
+          type="text"
+          name="target"
+          placeholder="URL, np. http://10.10.10.3"
+          required
+          autocomplete="off"
+        >
+        <input
+          type="text"
+          name="engagement"
+          placeholder="engagement, np. HTB: Lame"
+          autocomplete="off"
+          style="flex: 0 0 160px;"
+        >
+        <button class="btn" type="submit">Scan</button>
+      </form>
+      <div id="gobuster-indicator" class="htmx-indicator">
+        <div class="scan-progress"><div class="scan-progress-fill"></div></div>
+        <span class="blink">&gt;&gt;</span> szukam katalogów i plików (może potrwać kilka minut)...
+        <span class="elapsed">00:00</span>
+      </div>
+    </div>
+
+    <div id="gobuster-result" class="panel">
+      <div class="panel-label">Wynik</div>
+      <p style="color: var(--text-dim);">Brak jeszcze żadnego skanu.</p>
+    </div>
+
     <div class="team-band team-blue">
       <div class="team-band-label">Blue Team // detekcja</div>
       <div class="team-band-note">wkrótce — monitoring i analiza logów</div>

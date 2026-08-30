@@ -5,10 +5,16 @@ WORKDIR /app
 # has no real PyPI release — the name is squatted — so it's installed
 # straight from its GitHub repo) and exiftool's CLI (Debian package name is
 # libimage-exiftool-perl; it installs the `exiftool` binary on PATH).
+#   - gobuster: web directory/file brute-forcer.
+#   - dirb: not used for its own binary — its Debian package bundles
+#     /usr/share/dirb/wordlists/common.txt, the default wordlist gobuster
+#     runs against (GOBUSTER_WORDLIST env var can point elsewhere).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
         libimage-exiftool-perl \
         nmap \
+        gobuster \
+        dirb \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

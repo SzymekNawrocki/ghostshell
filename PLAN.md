@@ -149,11 +149,23 @@ interaktywne/stanowe i appka by to tylko udawała.
    Przy okazji: pasek postępu + licznik czasu przy każdym skanie (żeby 2-3 minutowy Sherlock/Nmap
    nie wyglądał jak zawieszona appka) i naprawiony `docker-compose.yml` (brakujący healthcheck na
    `db` — `app` potrafił wystartować przed gotowością Postgresa).
-2. **Nikto** i **gobuster** — do rozważenia PO tym, jak Nmap+grupowanie się sprawdzą w realnym
-   użyciu, nie od razu. Oba pasują do wzorca, ale mają realny koszt: gobuster z dużą wordlistą może
-   kręcić się długo (ten sam problem co Sherlock: "30-60s" okazało się być "2-3 min" w praktyce),
-   Nikto bywa gadatliwy (dużo fałszywych alarmów na nowoczesnych serwerach). Nie odrzucone, tylko
-   odłożone do potwierdzenia na żywym przypadku.
+2. ✅ **gobuster** (zrobione 2026-08-30, tryb `dir`) — dorzucony wcześniej niż planowano: Szymon
+   zaczyna THM i chciał mieć web-recon gotowy z góry, zamiast czekać na potwierdzenie wzorca.
+   `ScanSpec` jak reszta (`GOBUSTER_SPEC` w `scan_tools.py`). Wordlista: `common.txt` z pakietu
+   `dirb` (`/usr/share/dirb/wordlists/common.txt` — Debian trzyma go pod inną ścieżką niż Kali,
+   złapane na żywym buildzie, nie z dokumentacji), ~4600 słów, nadpisywalna przez
+   `GOBUSTER_WORDLIST`. Rozszerzenia (`php,txt,bak,zip,html,config`) na stałe w kodzie, nie w
+   formularzu. Dwa problemy złapane na żywym skanie, nie w teorii:
+   - **Czas.** Sam Nmap-owy strach się potwierdził: bez rozszerzeń pełny `common.txt` to ~85s przy
+     domyślnych 10 wątkach gobustera, ale `-x` z 6 rozszerzeniami mnoży liczbę requestów ×7 —
+     przy 10 wątkach ekstrapoluje się to na ~10 minut. Podniesione do 50 wątków (`GOBUSTER_THREADS`)
+     — z rozszerzeniami realnie ~2 minuty na `scanme.nmap.org`. Budżet (`GOBUSTER_TIMEOUT_SECONDS`)
+     ustawiony na 240s.
+   - **Parsowanie.** `-q --no-color --no-progress` i tak wypisuje kod ANSI czyszczący linię
+     (`\x1b[2K`) tuż przed każdym wynikiem — nieudokumentowane, złapane dopiero na żywym stdout.
+     Parser czyści to wyrażeniem regularnym przed dopasowaniem, z testem pilnującym regresji.
+   Nikto zostaje odłożony — decyzja: zobaczyć jak gobuster sprawdza się w praktyce, zanim dorzucimy
+   drugie narzędzie na tym samym wzorcu.
 
 ## Refaktor architektury: scan_tools.py (2026-08-30)
 

@@ -7,8 +7,21 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from db import get_connection, get_manual_notes, get_osint_scans, init_db, save_manual_note
-from scan_tools import EXIFTOOL_SPEC, NMAP_SPEC, SHERLOCK_SPEC, THEHARVESTER_SPEC, perform_scan
-from schemas import ManualNoteRequest, NmapRequest, SherlockRequest, TheHarvesterRequest
+from scan_tools import (
+    EXIFTOOL_SPEC,
+    GOBUSTER_SPEC,
+    NMAP_SPEC,
+    SHERLOCK_SPEC,
+    THEHARVESTER_SPEC,
+    perform_scan,
+)
+from schemas import (
+    GobusterRequest,
+    ManualNoteRequest,
+    NmapRequest,
+    SherlockRequest,
+    TheHarvesterRequest,
+)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -154,6 +167,26 @@ async def submit_nmap_scan_ui(
             {"error": exc.detail, "target": target},
         )
     return templates.TemplateResponse(request, "_nmap_result.html", result)
+
+
+@app.post("/scan/gobuster")
+async def submit_gobuster_scan(payload: GobusterRequest):
+    return await perform_scan(GOBUSTER_SPEC, payload.target, payload.engagement)
+
+
+@app.post("/scan/gobuster/ui", response_class=HTMLResponse)
+async def submit_gobuster_scan_ui(
+    request: Request, target: str = Form(...), engagement: str = Form("")
+):
+    try:
+        result = await perform_scan(GOBUSTER_SPEC, target, normalize_engagement(engagement))
+    except HTTPException as exc:
+        return templates.TemplateResponse(
+            request,
+            "_gobuster_result.html",
+            {"error": exc.detail, "target": target},
+        )
+    return templates.TemplateResponse(request, "_gobuster_result.html", result)
 
 
 @app.post("/notes")

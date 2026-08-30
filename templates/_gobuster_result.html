@@ -1,0 +1,23 @@
+<div class="panel-label">Wynik</div>
+{% if error %}
+<div class="error-box">
+  [!] Skan dla <strong>{{ target }}</strong> nie powiódł się: {{ error }}
+</div>
+{% else %}
+<div class="result-header">
+  <span>target: <span class="result-target">{{ target }}</span></span>
+</div>
+<p style="color: var(--text-dim); font-size: 0.85rem;">
+  Znaleziono {{ found_count }} ścieżk{{ "ę" if found_count == 1 else "i" }}.
+</p>
+{% if results %}
+<ul class="hit-list">
+  {% for hit in results %}
+  <li>
+    <span class="hit-service">{{ hit.path }} — {{ hit.status }}</span>
+    <span class="hit-url">{{ hit.redirect or (hit.size ~ " B" if hit.size is not none else "") }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endif %}

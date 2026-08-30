@@ -16,6 +16,11 @@ class NmapRequest(BaseModel):
     engagement: str = Field(default="adhoc", min_length=1, max_length=100)
 
 
+class GobusterRequest(BaseModel):
+    target: str = Field(min_length=1, max_length=2048)
+    engagement: str = Field(default="adhoc", min_length=1, max_length=100)
+
+
 class ManualNoteRequest(BaseModel):
     category: str = Field(min_length=1, max_length=50)
     note: str = Field(min_length=1, max_length=1000)
