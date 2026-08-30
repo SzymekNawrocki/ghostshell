@@ -11,6 +11,9 @@
   --text: #d9e6d9;
   --text-dim: #6f7d6c;
   --danger: #ff4d4d;
+  --red-team: #ff4d4d;
+  --blue-team: #4d9eff;
+  --purple-team: #b967ff;
 }
 
 * {
@@ -339,6 +342,39 @@ body {
 .log-empty {
   color: var(--text-dim);
   border-bottom: none !important;
+}
+
+.team-band {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0 0.6rem 0.85rem;
+  margin: 2rem 0 1rem;
+  border-left: 3px solid var(--team-color);
+}
+
+.team-band-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--team-color);
+}
+
+.team-band-note {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.team-red { --team-color: var(--red-team); }
+.team-blue { --team-color: var(--blue-team); }
+.team-purple { --team-color: var(--purple-team); }
+
+.team-band.team-blue,
+.team-band.team-purple {
+  opacity: 0.55;
 }
 
 .engagement-group {
