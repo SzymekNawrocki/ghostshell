@@ -140,17 +140,55 @@ interaktywne/stanowe i appka by to tylko udawała.
 
 ### Wchodzą do GhostShell — kolejność (żadna jeszcze nie zaczęta)
 
-1. **Nmap** + **grupowanie po `target`/`engagement`** — robione razem, nie osobno. Nmap: ten sam
+1. ✅ **Nmap** + **grupowanie po `target`/`engagement`** (zrobione 2026-08-30). Nmap: ten sam
    wzorzec co Sherlock (`asyncio.create_subprocess_exec`, `-oX -` → XML na stdout → parsowanie
-   portów/usług → `db.save_osint_scan`). Grupowanie: dodać kolumnę `target`/`engagement` (np. "HTB:
-   Lame") do `osint_scans`, filtrować/grupować dashboard po niej — bez tego czwarty (i kolejne)
-   panel tylko pogłębia bałagan w płaskiej liście. Decyzja: robić od razu razem, bo koszt osobnej
-   migracji później > koszt zrobienia raz teraz.
+   portów/usług → `db.save_osint_scan`). Grupowanie: dodana kolumna `engagement` (np. "HTB: Lame")
+   do `osint_scans`, dashboard grupuje historię po niej — bez tego czwarty (i kolejne) panel tylko
+   pogłębiałby bałagan w płaskiej liście. Zrobione od razu razem, nie osobno: koszt osobnej
+   migracji później > koszt zrobienia raz teraz. Przetestowane na żywo na `scanme.nmap.org`.
+   Przy okazji: pasek postępu + licznik czasu przy każdym skanie (żeby 2-3 minutowy Sherlock/Nmap
+   nie wyglądał jak zawieszona appka) i naprawiony `docker-compose.yml` (brakujący healthcheck na
+   `db` — `app` potrafił wystartować przed gotowością Postgresa).
 2. **Nikto** i **gobuster** — do rozważenia PO tym, jak Nmap+grupowanie się sprawdzą w realnym
    użyciu, nie od razu. Oba pasują do wzorca, ale mają realny koszt: gobuster z dużą wordlistą może
    kręcić się długo (ten sam problem co Sherlock: "30-60s" okazało się być "2-3 min" w praktyce),
    Nikto bywa gadatliwy (dużo fałszywych alarmów na nowoczesnych serwerach). Nie odrzucone, tylko
    odłożone do potwierdzenia na żywym przypadku.
+
+## Refaktor architektury: scan_tools.py (2026-08-30)
+
+Po dodaniu Nmapa cztery integracje narzędzi (`run_sherlock`, `run_theharvester`, `run_exiftool`,
+`run_nmap` w `main.py`) miały identyczny interfejs i niemal identyczną implementację — kopiuj-wklej,
+nie prawdziwa złożoność specyficzna dla narzędzia (test na usunięcie: usunięcie jednej z tych funkcji
+nie koncentrowało złożoności, bo ta sama logika nadal siedziała wklejona w trzech pozostałych).
+
+Zebrane w nowy plik `scan_tools.py`:
+- **`ScanSpec`** — deklaratywny opis jednego narzędzia (binarka, budowanie argumentów, timeout,
+  sposób czytania wyniku, parser). Cztery instancje: `SHERLOCK_SPEC`, `THEHARVESTER_SPEC`,
+  `EXIFTOOL_SPEC`, `NMAP_SPEC`.
+- **`run_cli_scan(spec, target)`** — jedyne miejsce wołające `asyncio.create_subprocess_exec`;
+  obsługuje timeout, kod wyjścia, czytanie wyniku (stdout dla trójki, plik dla theHarvestera —
+  jedyne narzędzie z asymetrią stdout/plik, obsłużone przez wymienny `read_output` w specu, nie
+  przez `if` w środku).
+- **`perform_scan(spec, target, engagement, display_target=None)`** — uruchamia, zapisuje do bazy,
+  buduje odpowiedź. `display_target` istnieje wyłącznie dla exiftoola: appka nadal sama zapisuje
+  wgrany plik na dysk tymczasowo i przekazuje tę ścieżkę jako `target` do wykonania, ale w bazie i
+  odpowiedzi ma się pokazać prawdziwa nazwa wgranego pliku, nie ścieżka tymczasowa.
+- `main.py` zostaje czystym routingiem HTTP — 8 endpointów (bez zmian w URL-ach/zachowaniu), każdy
+  woła `perform_scan(ODPOWIEDNI_SPEC, ...)`.
+
+Dodane pierwsze testy w projekcie: `tests/test_scan_tools.py` (16 testów — `run_cli_scan` z
+zamockowanym subprocessem: happy path, zły kod wyjścia, brak binarki, timeout+kill, oraz wszystkie
+cztery czyste funkcje `parse_*_output`), `pytest.ini`, `requirements-dev.txt` (pytest + pytest-asyncio,
+osobno od `requirements.txt`, żeby obraz Dockera nie ciągnął zależności testowych).
+
+Nowy `CONTEXT.md` — słownik domenowy (`ScanSpec`, `Engagement`, `Scan`, `Manual note`), żeby nazwy
+pojęć nie rozjeżdżały się między kodem a rozmowami o architekturze.
+
+Zweryfikowane na żywo po refaktorze (nie tylko testy jednostkowe): pełny `docker compose up --build`,
+realny skan Nmap na `scanme.nmap.org`, theHarvester na `python.org` (ścieżka plikowa — najbardziej
+ryzykowna zmiana), exiftool z uploadem (potwierdzone: `display_target` poprawnie pokazuje prawdziwą
+nazwę pliku) — wszystkie trzy dały identyczne wyniki jak przed refaktorem.
 
 ## Zasada pracy (zmieniona 2026-08-29)
 

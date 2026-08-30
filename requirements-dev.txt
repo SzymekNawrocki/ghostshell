@@ -1,0 +1,5 @@
+# Test-only dependencies — kept out of requirements.txt so the Docker image
+# (and anyone running the app, not developing it) doesn't need pytest.
+-r requirements.txt
+pytest==8.3.4
+pytest-asyncio==0.25.2
