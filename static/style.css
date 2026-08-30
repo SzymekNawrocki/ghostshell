@@ -62,14 +62,57 @@ body {
   border: 1px solid var(--cyan-dim);
   padding: 0.15rem 0.5rem;
   border-radius: 3px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.hud-status.scanning {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 .panel {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.5rem;
+}
+
+/* Result panel while its scan is still running server-side — dims the
+   previous (now stale) result instead of leaving it looking current. */
+.panel.is-loading {
+  opacity: 0.4;
+}
+
+.panel.is-loading::after {
+  content: 'SKANUJĘ...';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  background: rgba(10, 13, 10, 0.35);
+  border-radius: 4px;
+}
+
+/* Fade freshly-swapped scan results in instead of popping them in raw. */
+[id$="-result"].htmx-added {
+  opacity: 0;
+}
+
+[id$="-result"] {
+  opacity: 1;
+  transition: opacity 300ms ease-in;
 }
 
 .panel-label {
@@ -160,13 +203,42 @@ body {
   margin-top: 0.75rem;
 }
 
-.htmx-request .htmx-indicator {
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
   display: block;
 }
 
-.htmx-request.scan-form .btn {
+.htmx-request.scan-form .btn,
+.htmx-request.scan-form input {
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* Indeterminate sweep — we don't know real progress (nmap/sherlock give no
+   percentage), so this signals "still alive", not "X% done". */
+.scan-progress {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.scan-progress-fill {
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  animation: scan-sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes scan-sweep {
+  0% { margin-left: -30%; }
+  100% { margin-left: 100%; }
+}
+
+.elapsed {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 .blink {
@@ -267,6 +339,22 @@ body {
 .log-empty {
   color: var(--text-dim);
   border-bottom: none !important;
+}
+
+.engagement-group {
+  margin-bottom: 1rem;
+}
+
+.engagement-group:last-child {
+  margin-bottom: 0;
+}
+
+.engagement-title {
+  color: var(--cyan);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
 }
 
 .error-box {

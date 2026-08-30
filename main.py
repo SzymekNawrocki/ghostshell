@@ -2,14 +2,22 @@ import asyncio
 import json
 import os
 import tempfile
+import xml.etree.ElementTree as ET
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from db import get_connection, get_manual_notes, init_db, save_manual_note, save_osint_scan
-from schemas import ManualNoteRequest, SherlockRequest, TheHarvesterRequest
+from db import (
+    get_connection,
+    get_manual_notes,
+    get_osint_scans,
+    init_db,
+    save_manual_note,
+    save_osint_scan,
+)
+from schemas import ManualNoteRequest, NmapRequest, SherlockRequest, TheHarvesterRequest
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -41,16 +49,34 @@ EXIFTOOL_BIN = os.environ.get("EXIFTOOL_BIN", "exiftool")
 EXIFTOOL_TIMEOUT_SECONDS = int(os.environ.get("EXIFTOOL_TIMEOUT_SECONDS", "30"))
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB — plenty for a photo, not for abuse
 
+NMAP_BIN = os.environ.get("NMAP_BIN", "nmap")
+# -sV (service/version detection) is the whole point of running nmap here
+# (feeds the next step — searchsploit-by-eye, picking an exploit) but makes
+# a full run much slower than a bare connect scan, hence the generous
+# default budget. -Pn skips host discovery: plenty of HTB/THM boxes drop
+# ICMP, and without -Pn nmap would report them as down and scan nothing.
+NMAP_TIMEOUT_SECONDS = int(os.environ.get("NMAP_TIMEOUT_SECONDS", "300"))
+
 
 @app.on_event("startup")
 def on_startup():
     init_db()
 
 
+def normalize_engagement(value: str) -> str:
+    """A blank engagement field from an HTML form arrives as "", not missing
+    — collapse that (and pure whitespace) to the same "adhoc" default the DB
+    column already falls back to."""
+    value = value.strip()
+    return value if value else "adhoc"
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     return templates.TemplateResponse(
-        request, "dashboard.html", {"notes": get_manual_notes()}
+        request,
+        "dashboard.html",
+        {"notes": get_manual_notes(), "scans": get_osint_scans()},
     )
 
 
@@ -120,11 +146,11 @@ async def run_sherlock(username: str) -> list[dict]:
     return parse_sherlock_output(stdout.decode(errors="replace"))
 
 
-async def perform_sherlock_scan(username: str) -> dict:
+async def perform_sherlock_scan(username: str, engagement: str = "adhoc") -> dict:
     """Run sherlock, persist the result, return everything a caller (JSON API
     or the HTMX dashboard) needs to report back."""
     hits = await run_sherlock(username)
-    save_osint_scan("sherlock", username, len(hits), hits)
+    save_osint_scan("sherlock", username, len(hits), hits, engagement)
 
     return {
         "target": username,
@@ -135,13 +161,15 @@ async def perform_sherlock_scan(username: str) -> dict:
 
 @app.post("/scan/sherlock")
 async def submit_sherlock_scan(payload: SherlockRequest):
-    return await perform_sherlock_scan(payload.username)
+    return await perform_sherlock_scan(payload.username, payload.engagement)
 
 
 @app.post("/scan/sherlock/ui", response_class=HTMLResponse)
-async def submit_sherlock_scan_ui(request: Request, username: str = Form(...)):
+async def submit_sherlock_scan_ui(
+    request: Request, username: str = Form(...), engagement: str = Form("")
+):
     try:
-        result = await perform_sherlock_scan(username)
+        result = await perform_sherlock_scan(username, normalize_engagement(engagement))
     except HTTPException as exc:
         return templates.TemplateResponse(
             request,
@@ -212,11 +240,11 @@ async def run_theharvester(domain: str) -> list[dict]:
         return parse_theharvester_output(json_path)
 
 
-async def perform_theharvester_scan(domain: str) -> dict:
+async def perform_theharvester_scan(domain: str, engagement: str = "adhoc") -> dict:
     """Run theHarvester, persist the result, return everything a caller (JSON
     API or the HTMX dashboard) needs to report back."""
     hits = await run_theharvester(domain)
-    save_osint_scan("theharvester", domain, len(hits), hits)
+    save_osint_scan("theharvester", domain, len(hits), hits, engagement)
 
     return {
         "target": domain,
@@ -227,13 +255,15 @@ async def perform_theharvester_scan(domain: str) -> dict:
 
 @app.post("/scan/theharvester")
 async def submit_theharvester_scan(payload: TheHarvesterRequest):
-    return await perform_theharvester_scan(payload.domain)
+    return await perform_theharvester_scan(payload.domain, payload.engagement)
 
 
 @app.post("/scan/theharvester/ui", response_class=HTMLResponse)
-async def submit_theharvester_scan_ui(request: Request, domain: str = Form(...)):
+async def submit_theharvester_scan_ui(
+    request: Request, domain: str = Form(...), engagement: str = Form("")
+):
     try:
-        result = await perform_theharvester_scan(domain)
+        result = await perform_theharvester_scan(domain, normalize_engagement(engagement))
     except HTTPException as exc:
         return templates.TemplateResponse(
             request,
@@ -290,7 +320,7 @@ async def run_exiftool(file_path: str) -> dict:
     return parse_exiftool_output(stdout.decode(errors="replace"))
 
 
-async def perform_exiftool_scan(file: UploadFile) -> dict:
+async def perform_exiftool_scan(file: UploadFile, engagement: str = "adhoc") -> dict:
     """Save the upload to a temp file, run exiftool against it, persist the
     result, then delete the temp file — nothing from the upload sticks around
     on disk once the request is done."""
@@ -309,7 +339,7 @@ async def perform_exiftool_scan(file: UploadFile) -> dict:
         os.remove(tmp_path)
 
     target = file.filename or "upload"
-    save_osint_scan("exiftool", target, len(metadata), metadata)
+    save_osint_scan("exiftool", target, len(metadata), metadata, engagement)
 
     return {
         "target": target,
@@ -324,9 +354,11 @@ async def submit_exiftool_scan(file: UploadFile = File(...)):
 
 
 @app.post("/scan/exiftool/ui", response_class=HTMLResponse)
-async def submit_exiftool_scan_ui(request: Request, file: UploadFile = File(...)):
+async def submit_exiftool_scan_ui(
+    request: Request, file: UploadFile = File(...), engagement: str = Form("")
+):
     try:
-        result = await perform_exiftool_scan(file)
+        result = await perform_exiftool_scan(file, normalize_engagement(engagement))
     except HTTPException as exc:
         return templates.TemplateResponse(
             request,
@@ -334,6 +366,106 @@ async def submit_exiftool_scan_ui(request: Request, file: UploadFile = File(...)
             {"error": exc.detail, "target": file.filename},
         )
     return templates.TemplateResponse(request, "_exiftool_result.html", result)
+
+
+def parse_nmap_output(xml_str: str) -> list[dict]:
+    """Parse nmap's `-oX -` XML into one dict per open port. Closed/filtered
+    ports are dropped — for the HTB workflow this feeds, "not open" carries
+    no information worth storing."""
+    root = ET.fromstring(xml_str)
+    open_ports = []
+    for host in root.findall("host"):
+        for port in host.findall("./ports/port"):
+            state_el = port.find("state")
+            if state_el is None or state_el.get("state") != "open":
+                continue
+            service_el = port.find("service")
+            open_ports.append(
+                {
+                    "port": port.get("portid"),
+                    "protocol": port.get("protocol"),
+                    "service": service_el.get("name") if service_el is not None else None,
+                    "product": service_el.get("product") if service_el is not None else None,
+                    "version": service_el.get("version") if service_el is not None else None,
+                }
+            )
+    return open_ports
+
+
+async def run_nmap(target: str) -> list[dict]:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            NMAP_BIN,
+            "-Pn",
+            "-sV",
+            "-T4",
+            "-oX",
+            "-",
+            target,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Nie udało się uruchomić '{NMAP_BIN}': {exc}",
+        )
+
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=NMAP_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise HTTPException(status_code=504, detail="Nmap scan timed out")
+
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Nmap exited with code {proc.returncode}: "
+            f"{stderr.decode(errors='replace').strip()}",
+        )
+
+    try:
+        return parse_nmap_output(stdout.decode(errors="replace"))
+    except ET.ParseError as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Nie udało się sparsować wyniku nmap: {exc}"
+        )
+
+
+async def perform_nmap_scan(target: str, engagement: str = "adhoc") -> dict:
+    """Run nmap, persist the result, return everything a caller (JSON API or
+    the HTMX dashboard) needs to report back."""
+    open_ports = await run_nmap(target)
+    save_osint_scan("nmap", target, len(open_ports), open_ports, engagement)
+
+    return {
+        "target": target,
+        "found_count": len(open_ports),
+        "results": open_ports,
+    }
+
+
+@app.post("/scan/nmap")
+async def submit_nmap_scan(payload: NmapRequest):
+    return await perform_nmap_scan(payload.target, payload.engagement)
+
+
+@app.post("/scan/nmap/ui", response_class=HTMLResponse)
+async def submit_nmap_scan_ui(
+    request: Request, target: str = Form(...), engagement: str = Form("")
+):
+    try:
+        result = await perform_nmap_scan(target, normalize_engagement(engagement))
+    except HTTPException as exc:
+        return templates.TemplateResponse(
+            request,
+            "_nmap_result.html",
+            {"error": exc.detail, "target": target},
+        )
+    return templates.TemplateResponse(request, "_nmap_result.html", result)
 
 
 @app.post("/notes")

@@ -26,6 +26,17 @@ def init_db():
                 );
                 """
             )
+            # Added after the table already existed in prod-like use, so this
+            # runs as a migration on every startup rather than living inside
+            # the CREATE TABLE above — ADD COLUMN IF NOT EXISTS makes it a
+            # no-op once the column is there. Groups scans by HTB/THM
+            # engagement ("HTB: Lame") instead of a flat, unsortable list.
+            cur.execute(
+                """
+                ALTER TABLE osint_scans
+                ADD COLUMN IF NOT EXISTS engagement TEXT NOT NULL DEFAULT 'adhoc';
+                """
+            )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS manual_notes (
@@ -39,19 +50,54 @@ def init_db():
         conn.commit()
 
 
-def save_osint_scan(tool: str, target: str, found_count: int, results) -> None:
+def save_osint_scan(
+    tool: str, target: str, found_count: int, results, engagement: str = "adhoc"
+) -> None:
     """Persist one tool run to the shared history table. `results` is anything
-    JSON-serializable (list of hits, dict of metadata, ...)."""
+    JSON-serializable (list of hits, dict of metadata, ...). `engagement`
+    groups scans that belong to the same HTB/THM box ("HTB: Lame") — scans
+    outside any named engagement fall back to "adhoc"."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO osint_scans (tool, target, found_count, results)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO osint_scans (tool, target, found_count, results, engagement)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
-                (tool, target, found_count, json.dumps(results)),
+                (tool, target, found_count, json.dumps(results), engagement),
             )
         conn.commit()
+
+
+def get_osint_scans(limit: int = 100) -> list[dict]:
+    """Recent scan history across all tools, ordered so scans from the same
+    engagement land next to each other (for Jinja's `groupby`) and the newest
+    engagement group appears first."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT tool, target, engagement, found_count, created_at
+                FROM osint_scans
+                ORDER BY MAX(created_at) OVER (PARTITION BY engagement) DESC,
+                         engagement,
+                         created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+
+    return [
+        {
+            "tool": r[0],
+            "target": r[1],
+            "engagement": r[2],
+            "found_count": r[3],
+            "created_at": r[4].strftime("%Y-%m-%d %H:%M"),
+        }
+        for r in rows
+    ]
 
 
 def save_manual_note(category: str, note: str) -> dict:

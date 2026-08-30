@@ -1,0 +1,23 @@
+<div class="panel-label">Wynik</div>
+{% if error %}
+<div class="error-box">
+  [!] Skan dla <strong>{{ target }}</strong> nie powiódł się: {{ error }}
+</div>
+{% else %}
+<div class="result-header">
+  <span>target: <span class="result-target">{{ target }}</span></span>
+</div>
+<p style="color: var(--text-dim); font-size: 0.85rem;">
+  Znaleziono {{ found_count }} otwart{{ "y port" if found_count == 1 else "e porty" }}.
+</p>
+{% if results %}
+<ul class="hit-list">
+  {% for hit in results %}
+  <li>
+    <span class="hit-service">{{ hit.port }}/{{ hit.protocol }} — {{ hit.service or "?" }}</span>
+    <span class="hit-url">{{ hit.product or "" }} {{ hit.version or "" }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endif %}

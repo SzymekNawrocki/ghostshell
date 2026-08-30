@@ -10,7 +10,7 @@
   <div class="hud">
     <div class="hud-header">
       <div class="hud-title">GhostShell</div>
-      <div class="hud-status">TOOLKIT · ONLINE</div>
+      <div id="hud-status" class="hud-status">TOOLKIT · ONLINE</div>
     </div>
 
     <div class="panel">
@@ -19,7 +19,7 @@
         class="scan-form"
         hx-post="/scan/sherlock/ui"
         hx-target="#sherlock-result"
-        hx-swap="innerHTML"
+        hx-swap="innerHTML settle:300ms"
         hx-indicator="#sherlock-indicator"
       >
         <input
@@ -29,10 +29,19 @@
           required
           autocomplete="off"
         >
+        <input
+          type="text"
+          name="engagement"
+          placeholder="engagement, np. HTB: Lame"
+          autocomplete="off"
+          style="flex: 0 0 160px;"
+        >
         <button class="btn" type="submit">Scan</button>
       </form>
       <div id="sherlock-indicator" class="htmx-indicator">
+        <div class="scan-progress"><div class="scan-progress-fill"></div></div>
         <span class="blink">&gt;&gt;</span> przeszukuję serwisy (może potrwać kilka minut)...
+        <span class="elapsed">00:00</span>
       </div>
     </div>
 
@@ -47,7 +56,7 @@
         class="scan-form"
         hx-post="/scan/theharvester/ui"
         hx-target="#theharvester-result"
-        hx-swap="innerHTML"
+        hx-swap="innerHTML settle:300ms"
         hx-indicator="#theharvester-indicator"
       >
         <input
@@ -57,10 +66,19 @@
           required
           autocomplete="off"
         >
+        <input
+          type="text"
+          name="engagement"
+          placeholder="engagement, np. HTB: Lame"
+          autocomplete="off"
+          style="flex: 0 0 160px;"
+        >
         <button class="btn" type="submit">Scan</button>
       </form>
       <div id="theharvester-indicator" class="htmx-indicator">
+        <div class="scan-progress"><div class="scan-progress-fill"></div></div>
         <span class="blink">&gt;&gt;</span> przeszukuję subdomeny...
+        <span class="elapsed">00:00</span>
       </div>
     </div>
 
@@ -75,21 +93,67 @@
         class="scan-form"
         hx-post="/scan/exiftool/ui"
         hx-target="#exiftool-result"
-        hx-swap="innerHTML"
+        hx-swap="innerHTML settle:300ms"
         hx-indicator="#exiftool-indicator"
         hx-encoding="multipart/form-data"
       >
         <input type="file" name="file" required>
+        <input
+          type="text"
+          name="engagement"
+          placeholder="engagement, np. HTB: Lame"
+          autocomplete="off"
+          style="flex: 0 0 160px;"
+        >
         <button class="btn" type="submit">Scan</button>
       </form>
       <div id="exiftool-indicator" class="htmx-indicator">
+        <div class="scan-progress"><div class="scan-progress-fill"></div></div>
         <span class="blink">&gt;&gt;</span> analizuję plik...
+        <span class="elapsed">00:00</span>
       </div>
     </div>
 
     <div id="exiftool-result" class="panel">
       <div class="panel-label">Wynik</div>
       <p style="color: var(--text-dim);">Brak jeszcze żadnej analizy.</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label">RECON // nmap — porty i usługi</div>
+      <form
+        class="scan-form"
+        hx-post="/scan/nmap/ui"
+        hx-target="#nmap-result"
+        hx-swap="innerHTML settle:300ms"
+        hx-indicator="#nmap-indicator"
+      >
+        <input
+          type="text"
+          name="target"
+          placeholder="IP lub host, np. 10.10.10.3"
+          required
+          autocomplete="off"
+        >
+        <input
+          type="text"
+          name="engagement"
+          placeholder="engagement, np. HTB: Lame"
+          autocomplete="off"
+          style="flex: 0 0 160px;"
+        >
+        <button class="btn" type="submit">Scan</button>
+      </form>
+      <div id="nmap-indicator" class="htmx-indicator">
+        <div class="scan-progress"><div class="scan-progress-fill"></div></div>
+        <span class="blink">&gt;&gt;</span> skanuję porty (-sV, może potrwać kilka minut)...
+        <span class="elapsed">00:00</span>
+      </div>
+    </div>
+
+    <div id="nmap-result" class="panel">
+      <div class="panel-label">Wynik</div>
+      <p style="color: var(--text-dim);">Brak jeszcze żadnego skanu.</p>
     </div>
 
     <div class="panel">
@@ -130,6 +194,93 @@
         {% endfor %}
       </ul>
     </div>
+
+    <div class="panel">
+      <div class="panel-label">HISTORIA SKANÓW // wg engagementu</div>
+      {% for engagement, group in scans|groupby("engagement") %}
+      <div class="engagement-group">
+        <div class="engagement-title">{{ engagement }}</div>
+        <ul class="log-list">
+          {% for scan in group %}
+          <li>
+            <span class="note-category">{{ scan.tool }}</span>
+            <span class="note-text">{{ scan.target }} — {{ scan.found_count }} wynik{{ "" if scan.found_count == 1 else "ów" }}</span>
+            <span class="note-time">{{ scan.created_at }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <p style="color: var(--text-dim);">Brak jeszcze żadnych skanów.</p>
+      {% endfor %}
+    </div>
   </div>
+
+  <script>
+    // Generic wiring for every .scan-form: elapsed-time counter (nmap/sherlock
+    // give no progress percentage, so "still counting up" is the only honest
+    // signal that it's alive, not hung), a dimmed "SKANUJĘ..." overlay on the
+    // stale result panel, and a HUD-wide "SCANNING..." state while anything
+    // is in flight. Pure vanilla JS — no build step, matches the rest of the app.
+    (function () {
+      var activeScans = 0;
+      var timers = {};
+
+      function formatElapsed(totalSeconds) {
+        var m = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+        var s = String(totalSeconds % 60).padStart(2, "0");
+        return m + ":" + s;
+      }
+
+      document.body.addEventListener("htmx:beforeRequest", function (evt) {
+        var form = evt.detail.elt;
+        if (!form.classList || !form.classList.contains("scan-form")) return;
+
+        activeScans++;
+        var statusEl = document.getElementById("hud-status");
+        if (statusEl) {
+          statusEl.textContent = "SCANNING...";
+          statusEl.classList.add("scanning");
+        }
+
+        var indicatorSel = form.getAttribute("hx-indicator");
+        var indicator = indicatorSel && document.querySelector(indicatorSel);
+        var elapsedEl = indicator && indicator.querySelector(".elapsed");
+        if (elapsedEl) {
+          var start = Date.now();
+          elapsedEl.textContent = "00:00";
+          timers[indicatorSel] = setInterval(function () {
+            elapsedEl.textContent = formatElapsed(Math.floor((Date.now() - start) / 1000));
+          }, 1000);
+        }
+
+        var targetSel = form.getAttribute("hx-target");
+        var targetEl = targetSel && document.querySelector(targetSel);
+        if (targetEl) targetEl.classList.add("is-loading");
+      });
+
+      document.body.addEventListener("htmx:afterRequest", function (evt) {
+        var form = evt.detail.elt;
+        if (!form.classList || !form.classList.contains("scan-form")) return;
+
+        activeScans = Math.max(0, activeScans - 1);
+        var statusEl = document.getElementById("hud-status");
+        if (statusEl && activeScans === 0) {
+          statusEl.textContent = "TOOLKIT · ONLINE";
+          statusEl.classList.remove("scanning");
+        }
+
+        var indicatorSel = form.getAttribute("hx-indicator");
+        if (indicatorSel && timers[indicatorSel]) {
+          clearInterval(timers[indicatorSel]);
+          delete timers[indicatorSel];
+        }
+
+        var targetSel = form.getAttribute("hx-target");
+        var targetEl = targetSel && document.querySelector(targetSel);
+        if (targetEl) targetEl.classList.remove("is-loading");
+      });
+    })();
+  </script>
 </body>
 </html>
