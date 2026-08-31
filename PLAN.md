@@ -202,6 +202,25 @@ realny skan Nmap na `scanme.nmap.org`, theHarvester na `python.org` (ścieżka p
 ryzykowna zmiana), exiftool z uploadem (potwierdzone: `display_target` poprawnie pokazuje prawdziwą
 nazwę pliku) — wszystkie trzy dały identyczne wyniki jak przed refaktorem.
 
+## Faza 3 — CI/CD (2026-08-31)
+
+Kontekst: dzień 2 trzydniowego planu nauki (`NOTES.md`) — GhostShell jako wehikuł do K8s/CI-CD,
+Szymon nie miał w żadnym projekcie ani jednego, ani drugiego.
+
+- ✅ **GitHub Actions** (`.github/workflows/ci.yml`) — na każdy `push` i każdy PR do `main`:
+  checkout → Python 3.12 (z cache pipa) → `pip install -r requirements-dev.txt` → `ruff check .`
+  → `pytest -q`. Runner to jednorazowa maszyna Ubuntu, nie lokalny `.venv` — świeży test, że repo
+  faktycznie da się postawić od zera, nie tylko "u mnie działa".
+- ✅ **ruff** dodany jako linter (`requirements-dev.txt`, `ruff==0.14.4`) — pierwszy lint w
+  projekcie. Zweryfikowany lokalnie przed wrzuceniem do CI: `ruff check .` czysty (`All checks
+  passed!`), `pytest -q` zielony (19/19) na obecnym kodzie — więc CI od pierwszego uruchomienia
+  jest zielone, nie zaczyna się od czerwonego pipeline'u do naprawiania.
+- Testy same w sobie nie potrzebują realnego Postgresa (`tests/conftest.py` tylko ustawia
+  `DATABASE_URL` na atrapę, `run_cli_scan` jest testowany z zamockowanym subprocessem) — dlatego
+  workflow nie stawia serwisu bazy danych, tylko `pip install` + testy. Gdyby doszły testy
+  integracyjne z realnym Postgresem, to osobny job z `services: postgres:` w GH Actions, nie
+  rozszerzenie tego joba.
+
 ## Zasada pracy (zmieniona 2026-08-29)
 
 Pierwotnie: kod appki pisze Szymon sam, z głowy. **Nadpisane 2026-08-29** — Szymon poprosił, żeby
