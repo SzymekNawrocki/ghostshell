@@ -220,6 +220,15 @@ Szymon nie miał w żadnym projekcie ani jednego, ani drugiego.
   workflow nie stawia serwisu bazy danych, tylko `pip install` + testy. Gdyby doszły testy
   integracyjne z realnym Postgresem, to osobny job z `services: postgres:` w GH Actions, nie
   rozszerzenie tego joba.
+- **Dwa błędy złapane na żywym pierwszym uruchomieniu, nie w teorii:**
+  1. Nazwa kroku `"Zainstaluj zależności (w tym dev: pytest, ruff)"` bez cudzysłowu — `: ` (dwukropek
+     + spacja) wewnątrz nieocytowanego stringu YAML zaczyna nową parę klucz-wartość, więc cały plik
+     przestawał się parsować (workflow rejestrował się jako "active", ale z nazwą = ścieżka pliku
+     zamiast `name: CI` — to był sygnał, że YAML nigdy się nie sparsował). Naprawa: cytować string.
+  2. `pytest -q` w CI nie widział `scan_tools.py` (`ModuleNotFoundError`), mimo że lokalnie 19/19
+     przechodziło. Przyczyna: konsolowy skrypt `pytest` nie dodaje katalogu roboczego do
+     `sys.path`, w przeciwieństwie do `python -m pytest`, którym testowałem lokalnie — różnica w
+     sposobie wywołania, nie w kodzie. Naprawa: workflow woła `python -m pytest -q`.
 
 ## Zasada pracy (zmieniona 2026-08-29)
 
