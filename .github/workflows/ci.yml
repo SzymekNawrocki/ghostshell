@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Zainstaluj zależności (w tym dev: pytest, ruff)
+      - name: "Zainstaluj zależności (w tym dev: pytest, ruff)"
         run: pip install -r requirements-dev.txt
 
       - name: Lint (ruff)
